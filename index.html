@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location Guesser</title>
+  <meta
+    name="description"
+    content="Location Guesser ist ein Geo-Quiz mit Google Street View und interaktiver Karte."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="./config.js"></script>
+  <script src="./locations.js"></script>
+  <script src="./open-rounds.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Browsergame</p>
+        <h1>Location Guesser</h1>
+        <p class="hero-copy">
+          Erkunde zufaellige Orte per Google Street View und markiere deinen Tipp auf der Karte.
+        </p>
+      </div>
+      <div class="scoreboard">
+        <div>
+          <span>Runde</span>
+          <strong id="round-value">1</strong>
+        </div>
+        <div>
+          <span>Score</span>
+          <strong id="score-value">0</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <section class="card panorama-card">
+        <div class="card-header">
+          <h2>Ansicht</h2>
+          <button id="new-round-button" class="ghost-button" type="button">Neue Runde</button>
+        </div>
+        <div id="pano-status" class="status-banner">Google Maps wird geladen ...</div>
+        <div id="pano" class="panorama"></div>
+      </section>
+
+      <aside class="card control-card">
+        <div class="card-header">
+          <h2>Dein Guess</h2>
+        </div>
+        <p class="card-copy">
+          Klicke auf die Karte, setze deinen Marker und bestaetige dann deinen Tipp.
+        </p>
+        <div id="map" class="guess-map"></div>
+        <div class="button-row">
+          <button id="submit-button" class="primary-button" type="button" disabled>Tipp abgeben</button>
+          <button id="reset-guess-button" class="ghost-button" type="button" disabled>Marker loeschen</button>
+        </div>
+        <section id="result-panel" class="result-panel hidden" aria-live="polite">
+          <h3>Rundenergebnis</h3>
+          <p id="result-summary"></p>
+          <p id="result-distance"></p>
+        </section>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>
