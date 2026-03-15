@@ -19,6 +19,8 @@ Wenn du moeglichst offen und ohne Google aufsetzen willst, nutze den Open-Modus.
 
 - OpenStreetMap-Kacheln fuer die Guess-Karte
 - eingebettete Mapillary-Captures fuer die Ortsansicht
+- eine serverseitige Zufallsauswahl aus weltweit verteilten Regionen
+- interaktiven Open-Viewer mit Zoom im Bild, wenn `MAPILLARY_ACCESS_TOKEN` gesetzt ist
 
 Wichtige Einschraenkung: Es gibt aktuell keine vollwertige, globale, offene Street-View-Alternative mit derselben Abdeckung und Konsistenz wie Google Street View. Deshalb basiert der Open-Modus hier auf einer kuratierten Liste oeffentlich einbettbarer Mapillary-Captures statt auf einer komplett zufaelligen Weltabfrage.
 
@@ -28,7 +30,8 @@ Wichtige Einschraenkung: Es gibt aktuell keine vollwertige, globale, offene Stre
 
 1. Lasse in `config.js` den Wert `provider: "open"` gesetzt.
 2. Starte einen lokalen Webserver.
-3. Fertig.
+3. Fuer wirklich globale Zufallsrunden setze in Cloudflare oder lokal mit Wrangler den Secret `MAPILLARY_ACCESS_TOKEN`.
+4. Ohne Token faellt die App auf die lokale Fallback-Liste in `open-rounds.js` zurueck.
 
 ### Optionaler Google-Modus
 
@@ -73,8 +76,9 @@ Wenn `wrangler` meldet, dass das `compatibility_date` in der Zukunft liegt, ist 
 
 - OpenStreetMap-Daten sind offen nutzbar, aber die Standard-Tileserver sind kein unbegrenztes Gratis-CDN fuer groessere Produktionen.
 - Fuer kleine Tests funktioniert `tile.openstreetmap.org`, fuer groesseres oder kommerzielles Hosting solltest du einen geeigneten Tile-Provider oder eigene Tiles nutzen.
-- Mapillary erlaubt das Einbetten einzelner Captures. Der Open-Modus hier nutzt deshalb kuratierte, einbettbare Runden.
-- Wenn du spaeter mehr offene Runden willst, erweitert man `open-rounds.js` um weitere Bild-Keys und Koordinaten.
+- Mapillary erlaubt das serverseitige Suchen nach Bildern ueber die Graph API. Die weltweite Zufallsauswahl in diesem Projekt nutzt dafuer eine Cloudflare Function und einen `MAPILLARY_ACCESS_TOKEN`.
+- Weil die Abdeckung ungleichmaessig ist, wird nicht ueber den gesamten Ozean randomisiert, sondern ueber weltweit verteilte Land-Regionen. Das ist absichtlich so, damit du tatsaechlich spielbare Runden bekommst.
+- Wenn die API nichts findet oder kein Token gesetzt ist, faellt die App auf `open-rounds.js` zurueck.
 
 ## Deployment mit GitHub und Cloudflare Pages
 
@@ -89,8 +93,9 @@ Wenn `wrangler` meldet, dass das `compatibility_date` in der Zukunft liegt, ist 
     - `GOOGLE_MAPS_API_KEY`
     - optional `GOOGLE_MAPS_MAP_ID`
     - optional `LOCATION_GUESSER_PROVIDER` mit `google` oder `open`
+    - fuer weltweite Open-Runden: `MAPILLARY_ACCESS_TOKEN`
 6. Trigger danach ein Redeploy.
-7. Wenn du nur den Open-Modus nutzt, brauchst du keine Cloudflare-Secrets.
+7. Wenn du nur den einfachen Open-Fallback nutzen willst, brauchst du kein Secret. Fuer echte weltweite Zufallsrunden im Open-Modus brauchst du `MAPILLARY_ACCESS_TOKEN`.
 
 ## Cloudflare-Projektdateien
 

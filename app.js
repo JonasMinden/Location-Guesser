@@ -27,8 +27,11 @@
     currentLocation: null,
     guessLatLng: null,
     mapAdapter: null,
+    config: {},
     availableGoogleLocations: [],
     availableOpenRounds: [],
+    recentOpenImageKeys: [],
+    openViewer: null,
   };
 
   function setStatus(message, isError) {
@@ -44,6 +47,7 @@
   function initialize() {
     loadRuntimeConfig()
       .then(function (config) {
+        state.config = config;
         state.provider = config.provider || "open";
 
         if (state.provider === "google") {
@@ -59,11 +63,7 @@
           });
         }
 
-        if (!openRounds.length) {
-          throw new Error("missing-open-rounds");
-        }
-
-        return loadLeafletAssets().then(function () {
+        return loadOpenAssets(config).then(function () {
           setupOpenMode();
         });
       })
@@ -106,19 +106,21 @@
     if (error && error.message === "missing-google-locations") {
       return "Google-Modus aktiv, aber locations.js ist leer.";
     }
-    if (error && error.message === "missing-open-rounds") {
-      return "Open-Modus aktiv, aber open-rounds.js ist leer.";
-    }
     return "Die Spielansicht konnte nicht geladen werden. Pruefe die Konfiguration.";
   }
 
-  function loadLeafletAssets() {
-    if (window.L) {
-      return Promise.resolve();
-    }
+  function loadOpenAssets(config) {
+    const tasks = [];
 
     ensureStylesheet("leaflet-css", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
-    return loadScriptOnce("leaflet-js", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
+    tasks.push(loadScriptOnce("leaflet-js", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"));
+
+    if (config.mapillaryAccessToken) {
+      ensureStylesheet("mapillary-css", "https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css");
+      tasks.push(loadScriptOnce("mapillary-js", "https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"));
+    }
+
+    return Promise.all(tasks);
   }
 
   function ensureStylesheet(id, href) {
@@ -434,19 +436,16 @@
       return;
     }
 
-    const round = takeNextRound(openRounds, "availableOpenRounds");
-    state.currentLocation = {
-      mode: "open",
-      name: round.name,
-      latLng: { lat: round.lat, lng: round.lng },
-      imageKey: round.imageKey,
-      imageUrl: round.imageUrl || ("https://www.mapillary.com/embed?image_key=" + encodeURIComponent(round.imageKey)),
-      sourceUrl: round.sourceUrl || ("https://www.mapillary.com/app/?pKey=" + encodeURIComponent(round.imageKey)),
-      attribution: round.attribution || "Mapillary imagery",
-      license: round.license || "CC BY-SA",
-    };
-    renderOpenViewer(state.currentLocation);
-    setStatus("Open-Runde geladen. Setze deinen Guess auf der Karte.", false);
+    loadOpenRound()
+      .then(function (round) {
+        state.currentLocation = round;
+        rememberOpenImageKey(round.imageKey);
+        renderOpenViewer(state.currentLocation);
+        setStatus("Open-Runde geladen. Setze deinen Guess auf der Karte.", false);
+      })
+      .catch(function () {
+        setStatus("Keine offene Runde gefunden. Pruefe den Mapillary-Token oder nutze die Fallback-Liste.", true);
+      });
   }
 
   function startGoogleRetry(location, attempt) {
@@ -473,7 +472,7 @@
     elements.resultPanel.classList.add("hidden");
     elements.submitButton.disabled = true;
     elements.resetGuessButton.disabled = true;
-    if (state.provider === "open") {
+    if (state.provider === "open" && !state.openViewer) {
       elements.pano.innerHTML = "";
     }
     if (state.mapAdapter) {
@@ -482,11 +481,16 @@
   }
 
   function renderOpenViewer(location) {
+    if (state.config.mapillaryAccessToken && window.mapillary && window.mapillary.Viewer) {
+      renderMapillaryJsViewer(location);
+      return;
+    }
+
     elements.pano.innerHTML = "";
 
     const iframe = document.createElement("iframe");
     iframe.className = "viewer-frame";
-    iframe.src = location.imageUrl;
+    iframe.src = "https://www.mapillary.com/embed?image_key=" + encodeURIComponent(location.imageKey);
     iframe.title = "Mapillary Ansicht";
     iframe.loading = "lazy";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
@@ -505,6 +509,78 @@
 
     elements.pano.appendChild(iframe);
     elements.pano.appendChild(credit);
+  }
+
+  function renderMapillaryJsViewer(location) {
+    const Viewer = window.mapillary.Viewer;
+
+    if (!state.openViewer) {
+      elements.pano.innerHTML = "";
+
+      const viewerContainer = document.createElement("div");
+      viewerContainer.id = "mapillary-viewer";
+      viewerContainer.className = "mapillary-viewer";
+
+      const credit = document.createElement("p");
+      credit.className = "viewer-credit";
+      credit.id = "viewer-credit";
+
+      elements.pano.appendChild(viewerContainer);
+      elements.pano.appendChild(credit);
+
+      state.openViewer = new Viewer({
+        accessToken: state.config.mapillaryAccessToken,
+        container: viewerContainer,
+      });
+    }
+
+    const credit = document.getElementById("viewer-credit");
+    if (credit) {
+      credit.innerHTML =
+        '<a href="' +
+        escapeHtml(location.sourceUrl) +
+        '" target="_blank" rel="noreferrer">Quelle: ' +
+        escapeHtml(location.attribution) +
+        "</a> (" +
+        escapeHtml(location.license) +
+        ")";
+    }
+
+    state.openViewer
+      .moveTo(location.imageKey)
+      .then(function () {
+        randomizeOpenViewerStart();
+        if (typeof state.openViewer.resize === "function") {
+          state.openViewer.resize();
+        }
+      })
+      .catch(function () {
+        state.openViewer = null;
+        renderOpenFallbackLink(location);
+      });
+  }
+
+  function randomizeOpenViewerStart() {
+    if (!state.openViewer) {
+      return;
+    }
+
+    state.openViewer.setCenter([
+      clamp(0.38 + Math.random() * 0.24, 0.2, 0.8),
+      clamp(0.4 + Math.random() * 0.2, 0.2, 0.8),
+    ]);
+    state.openViewer.setFieldOfView(45 + Math.random() * 18);
+    state.openViewer.setZoom(0.6 + Math.random() * 1.1);
+  }
+
+  function renderOpenFallbackLink(location) {
+    elements.pano.innerHTML =
+      '<div class="viewer-fallback">' +
+      "<p>Die interaktive Mapillary-Ansicht konnte nicht geladen werden.</p>" +
+      '<p><a href="' +
+      escapeHtml(location.sourceUrl) +
+      '" target="_blank" rel="noreferrer">Bild direkt bei Mapillary oeffnen</a></p>' +
+      "</div>";
   }
 
   function placeGuess(latLng) {
@@ -551,6 +627,66 @@
   function pickRandomItem(items) {
     const index = Math.floor(Math.random() * items.length);
     return items[index];
+  }
+
+  function loadOpenRound() {
+    return fetch("./api/open-round?exclude=" + encodeURIComponent(state.recentOpenImageKeys.join(",")))
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("open-round-fetch-failed");
+        }
+        return response.json();
+      })
+      .then(function (payload) {
+        if (payload && payload.round && payload.round.imageKey) {
+          return normalizeOpenRound(payload.round);
+        }
+
+        throw new Error("open-round-missing");
+      })
+      .catch(function () {
+        if (!openRounds.length) {
+          throw new Error("missing-open-rounds");
+        }
+
+        const round = takeNextRound(
+          openRounds.filter(function (item) {
+            return state.recentOpenImageKeys.indexOf(item.imageKey) === -1;
+          }).length
+            ? openRounds.filter(function (item) {
+                return state.recentOpenImageKeys.indexOf(item.imageKey) === -1;
+              })
+            : openRounds,
+          "availableOpenRounds"
+        );
+
+        return normalizeOpenRound(round);
+      });
+  }
+
+  function normalizeOpenRound(round) {
+    return {
+      mode: "open",
+      name: round.name,
+      latLng: { lat: Number(round.lat), lng: Number(round.lng) },
+      imageKey: round.imageKey,
+      imageUrl: round.imageUrl || ("https://www.mapillary.com/app/?pKey=" + encodeURIComponent(round.imageKey)),
+      sourceUrl: round.sourceUrl || ("https://www.mapillary.com/app/?pKey=" + encodeURIComponent(round.imageKey)),
+      attribution: round.attribution || "Mapillary imagery",
+      license: round.license || "CC BY-SA",
+      region: round.region || "",
+    };
+  }
+
+  function rememberOpenImageKey(imageKey) {
+    if (!imageKey) {
+      return;
+    }
+
+    state.recentOpenImageKeys.push(imageKey);
+    if (state.recentOpenImageKeys.length > 24) {
+      state.recentOpenImageKeys = state.recentOpenImageKeys.slice(-24);
+    }
   }
 
   function takeNextRound(sourceItems, stateKey) {
@@ -633,6 +769,10 @@
 
   function toRadians(value) {
     return (value * Math.PI) / 180;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   function escapeHtml(value) {
