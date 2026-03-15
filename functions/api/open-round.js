@@ -65,7 +65,7 @@ export async function onRequestGet(context) {
   const availableRegions = WORLD_REGIONS.filter((region) => !excludeRegions.has(region.name));
   const regionPool = shuffle(availableRegions.length ? availableRegions.slice() : WORLD_REGIONS.slice());
 
-  for (let attempt = 0; attempt < 24; attempt += 1) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
     const region = regionPool[attempt % regionPool.length];
     const bbox = randomSubBox(region.bbox);
     const params = new URLSearchParams({
@@ -136,8 +136,9 @@ function randomSubBox(bbox) {
   const south = bbox[1];
   const east = bbox[2];
   const north = bbox[3];
-  const width = Math.max(0.6, (east - west) * (0.08 + Math.random() * 0.16));
-  const height = Math.max(0.6, (north - south) * (0.08 + Math.random() * 0.16));
+  const maxArea = 0.0095;
+  const width = 0.04 + Math.random() * 0.07;
+  const height = Math.min(0.11, maxArea / width);
   const minWest = west;
   const maxWest = east - width;
   const minSouth = south;
