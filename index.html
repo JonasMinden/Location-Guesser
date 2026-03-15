@@ -46,7 +46,14 @@
       <section class="card panorama-card">
         <div class="card-header">
           <h2>Ansicht</h2>
-          <button id="new-round-button" class="ghost-button" type="button">Neue Runde</button>
+          <div class="viewer-actions">
+            <div class="zoom-controls" aria-label="Zoom Steuerung">
+              <button id="zoom-out-button" class="ghost-button icon-button" type="button" title="Rauszoomen">-</button>
+              <button id="zoom-reset-button" class="ghost-button icon-button" type="button" title="Zoom zuruecksetzen">0</button>
+              <button id="zoom-in-button" class="ghost-button icon-button" type="button" title="Reinzoomen">+</button>
+            </div>
+            <button id="new-round-button" class="ghost-button" type="button">Neue Runde</button>
+          </div>
         </div>
         <div id="pano-status" class="status-banner">Google Maps wird geladen ...</div>
         <div id="pano" class="panorama"></div>
@@ -68,6 +75,14 @@
           <h3>Rundenergebnis</h3>
           <p id="result-summary"></p>
           <p id="result-distance"></p>
+        </section>
+        <section class="leaderboard-panel" aria-live="polite">
+          <div class="card-header leaderboard-header">
+            <h3>Best Guesses</h3>
+            <button id="clear-leaderboard-button" class="ghost-button small-button" type="button">Reset</button>
+          </div>
+          <p class="card-copy">Die besten Einzel-Guesses dieses Browsers nach Distanz und Punkten.</p>
+          <ol id="leaderboard-list" class="leaderboard-list"></ol>
         </section>
       </aside>
     </main>

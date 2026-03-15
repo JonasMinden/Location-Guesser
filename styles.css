@@ -124,6 +124,17 @@ h1 {
   margin-bottom: 14px;
 }
 
+.viewer-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 8px;
+}
+
 .panorama {
   overflow: hidden;
   min-height: 640px;
@@ -212,6 +223,12 @@ button {
   transition: transform 120ms ease, opacity 120ms ease, background-color 120ms ease;
 }
 
+.icon-button,
+.small-button {
+  min-width: 44px;
+  padding-inline: 14px;
+}
+
 button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
@@ -238,6 +255,35 @@ button:disabled {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-panel {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-header {
+  margin-bottom: 8px;
+}
+
+.leaderboard-list {
+  margin: 14px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.leaderboard-list li {
+  margin-bottom: 10px;
+  line-height: 1.35;
+}
+
+.leaderboard-empty {
+  color: var(--muted);
+  list-style: none;
+  margin-left: -20px;
 }
 
 .hidden {

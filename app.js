@@ -18,7 +18,14 @@
     resultPanel: document.getElementById("result-panel"),
     resultSummary: document.getElementById("result-summary"),
     resultDistance: document.getElementById("result-distance"),
+    zoomInButton: document.getElementById("zoom-in-button"),
+    zoomOutButton: document.getElementById("zoom-out-button"),
+    zoomResetButton: document.getElementById("zoom-reset-button"),
+    leaderboardList: document.getElementById("leaderboard-list"),
+    clearLeaderboardButton: document.getElementById("clear-leaderboard-button"),
   };
+
+  const LEADERBOARD_STORAGE_KEY = "location-guesser-best-guesses-v1";
 
   const state = {
     provider: "open",
@@ -33,6 +40,8 @@
     recentOpenImageKeys: [],
     recentOpenRegions: [],
     openViewer: null,
+    openViewerZoom: 0.9,
+    leaderboard: [],
   };
 
   function setStatus(message, isError) {
@@ -162,7 +171,20 @@
     elements.submitButton.addEventListener("click", submitGuess);
     elements.resetGuessButton.addEventListener("click", resetGuessMarker);
     elements.newRoundButton.addEventListener("click", startRound);
+    elements.zoomInButton.addEventListener("click", function () {
+      adjustOpenViewerZoom(0.35);
+    });
+    elements.zoomOutButton.addEventListener("click", function () {
+      adjustOpenViewerZoom(-0.35);
+    });
+    elements.zoomResetButton.addEventListener("click", resetOpenViewerZoom);
+    elements.clearLeaderboardButton.addEventListener("click", clearLeaderboard);
+    elements.zoomInButton.disabled = false;
+    elements.zoomOutButton.disabled = false;
+    elements.zoomResetButton.disabled = false;
 
+    state.leaderboard = loadLeaderboard();
+    renderLeaderboard();
     setStatus("Open-Modus aktiv: OpenStreetMap + Mapillary.", false);
     updateScoreboard();
     startRound();
@@ -263,7 +285,13 @@
     elements.submitButton.addEventListener("click", submitGuess);
     elements.resetGuessButton.addEventListener("click", resetGuessMarker);
     elements.newRoundButton.addEventListener("click", startRound);
+    elements.zoomInButton.disabled = true;
+    elements.zoomOutButton.disabled = true;
+    elements.zoomResetButton.disabled = true;
+    elements.clearLeaderboardButton.addEventListener("click", clearLeaderboard);
 
+    state.leaderboard = loadLeaderboard();
+    renderLeaderboard();
     setStatus("Google-Modus aktiv: Maps + Street View.", false);
     updateScoreboard();
     startRound();
@@ -442,6 +470,7 @@
         state.currentLocation = round;
         rememberOpenImageKey(round.imageKey);
         rememberOpenRegion(round.region);
+        resetOpenViewerZoom();
         renderOpenViewer(state.currentLocation);
         setStatus(
           "Open-Runde geladen" + (round.region ? " (" + round.region + ")" : "") + ". Setze deinen Guess auf der Karte.",
@@ -491,6 +520,10 @@
       return;
     }
 
+    elements.zoomInButton.disabled = true;
+    elements.zoomOutButton.disabled = true;
+    elements.zoomResetButton.disabled = true;
+
     elements.pano.innerHTML = "";
 
     const iframe = document.createElement("iframe");
@@ -518,6 +551,9 @@
 
   function renderMapillaryJsViewer(location) {
     const Viewer = window.mapillary.Viewer;
+    elements.zoomInButton.disabled = false;
+    elements.zoomOutButton.disabled = false;
+    elements.zoomResetButton.disabled = false;
 
     if (!state.openViewer) {
       elements.pano.innerHTML = "";
@@ -580,14 +616,18 @@
       state.openViewer.setFieldOfView(45 + Math.random() * 18);
     }
     if (typeof state.openViewer.setZoom === "function") {
-      state.openViewer.setZoom(0.6 + Math.random() * 1.1);
+      state.openViewerZoom = 0.8 + Math.random() * 1.1;
+      state.openViewer.setZoom(state.openViewerZoom);
     }
   }
 
   function renderOpenFallbackLink(location) {
+    elements.zoomInButton.disabled = true;
+    elements.zoomOutButton.disabled = true;
+    elements.zoomResetButton.disabled = true;
     elements.pano.innerHTML =
       '<div class="viewer-fallback">' +
-      "<p>Die interaktive Mapillary-Ansicht konnte nicht geladen werden.</p>" +
+      "<p>Die interaktive Mapillary-Ansicht konnte nicht geladen werden. Zoom ist in diesem Fallback nicht verfuegbar.</p>" +
       '<p><a href="' +
       escapeHtml(location.sourceUrl) +
       '" target="_blank" rel="noreferrer">Bild direkt bei Mapillary oeffnen</a></p>' +
@@ -629,10 +669,33 @@
       state.currentLocation.latLng.lng.toFixed(4) +
       ".";
     elements.resultPanel.classList.remove("hidden");
+    pushLeaderboardEntry({
+      locationName: state.currentLocation.name,
+      region: state.currentLocation.region || "",
+      distanceMeters: distanceMeters,
+      score: roundScore,
+      guessedAt: new Date().toISOString(),
+    });
 
     state.round += 1;
     elements.roundValue.textContent = String(state.round);
     elements.submitButton.disabled = true;
+  }
+
+  function adjustOpenViewerZoom(delta) {
+    if (!state.openViewer || typeof state.openViewer.setZoom !== "function") {
+      return;
+    }
+
+    state.openViewerZoom = clamp(state.openViewerZoom + delta, 0.2, 3.5);
+    state.openViewer.setZoom(state.openViewerZoom);
+  }
+
+  function resetOpenViewerZoom() {
+    state.openViewerZoom = 1;
+    if (state.openViewer && typeof state.openViewer.setZoom === "function") {
+      state.openViewer.setZoom(state.openViewerZoom);
+    }
   }
 
   function pickRandomItem(items) {
@@ -700,8 +763,8 @@
     }
 
     state.recentOpenImageKeys.push(imageKey);
-    if (state.recentOpenImageKeys.length > 80) {
-      state.recentOpenImageKeys = state.recentOpenImageKeys.slice(-80);
+    if (state.recentOpenImageKeys.length > 160) {
+      state.recentOpenImageKeys = state.recentOpenImageKeys.slice(-160);
     }
   }
 
@@ -711,9 +774,74 @@
     }
 
     state.recentOpenRegions.push(region);
-    if (state.recentOpenRegions.length > 8) {
-      state.recentOpenRegions = state.recentOpenRegions.slice(-8);
+    if (state.recentOpenRegions.length > 12) {
+      state.recentOpenRegions = state.recentOpenRegions.slice(-12);
     }
+  }
+
+  function loadLeaderboard() {
+    try {
+      const raw = window.localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function saveLeaderboard() {
+    try {
+      window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(state.leaderboard));
+    } catch (_error) {
+      // Ignore storage errors and keep gameplay running.
+    }
+  }
+
+  function pushLeaderboardEntry(entry) {
+    state.leaderboard.push(entry);
+    state.leaderboard.sort(function (left, right) {
+      if (left.distanceMeters !== right.distanceMeters) {
+        return left.distanceMeters - right.distanceMeters;
+      }
+      return right.score - left.score;
+    });
+    state.leaderboard = state.leaderboard.slice(0, 10);
+    saveLeaderboard();
+    renderLeaderboard();
+  }
+
+  function clearLeaderboard() {
+    state.leaderboard = [];
+    saveLeaderboard();
+    renderLeaderboard();
+  }
+
+  function renderLeaderboard() {
+    if (!elements.leaderboardList) {
+      return;
+    }
+
+    elements.leaderboardList.innerHTML = "";
+
+    if (!state.leaderboard.length) {
+      const emptyItem = document.createElement("li");
+      emptyItem.className = "leaderboard-empty";
+      emptyItem.textContent = "Noch keine Guesses gespeichert.";
+      elements.leaderboardList.appendChild(emptyItem);
+      return;
+    }
+
+    state.leaderboard.forEach(function (entry) {
+      const item = document.createElement("li");
+      item.textContent =
+        formatDistance(entry.distanceMeters) +
+        " | " +
+        entry.score +
+        " Punkte | " +
+        entry.locationName +
+        (entry.region ? " (" + entry.region + ")" : "");
+      elements.leaderboardList.appendChild(item);
+    });
   }
 
   function takeNextRound(sourceItems, stateKey) {
