@@ -5,6 +5,20 @@
   const openRounds = Array.isArray(window.LOCATION_GUESSER_OPEN_ROUNDS)
     ? window.LOCATION_GUESSER_OPEN_ROUNDS
     : [];
+  const emergencyOpenRounds = [
+    {
+      name: "Nahe Darmstadt, Deutschland",
+      lat: 49.7901595,
+      lng: 8.6493507,
+      imageKey: "683452496997264",
+    },
+    {
+      name: "Nagano-Region, Japan",
+      lat: 36.3096744,
+      lng: 138.4362083,
+      imageKey: "Cuyq9l9YI5HF3In1C7f8aj",
+    },
+  ];
 
   const elements = {
     pano: document.getElementById("pano"),
@@ -478,7 +492,13 @@
         );
       })
       .catch(function () {
-        setStatus("Keine offene Runde gefunden. Pruefe den Mapillary-Token oder nutze die Fallback-Liste.", true);
+        const emergencyRound = getEmergencyOpenRound();
+        state.currentLocation = emergencyRound;
+        rememberOpenImageKey(emergencyRound.imageKey);
+        rememberOpenRegion(emergencyRound.region);
+        resetOpenViewerZoom();
+        renderOpenViewer(state.currentLocation);
+        setStatus("Fallback-Runde geladen. Setze deinen Guess auf der Karte.", false);
       });
   }
 
@@ -734,23 +754,22 @@
       })
       .catch(function () {
         window.clearTimeout(timeoutId);
-        if (!openRounds.length) {
-          throw new Error("missing-open-rounds");
-        }
-
-        const round = takeNextRound(
-          openRounds.filter(function (item) {
-            return state.recentOpenImageKeys.indexOf(item.imageKey) === -1;
-          }).length
-            ? openRounds.filter(function (item) {
-                return state.recentOpenImageKeys.indexOf(item.imageKey) === -1;
-              })
-            : openRounds,
-          "availableOpenRounds"
-        );
-
-        return normalizeOpenRound(round);
+        return Promise.resolve(normalizeOpenRound(getLocalFallbackRound()));
       });
+  }
+
+  function getLocalFallbackRound() {
+    const poolSource = openRounds.length ? openRounds : emergencyOpenRounds;
+    const filtered = poolSource.filter(function (item) {
+      return state.recentOpenImageKeys.indexOf(item.imageKey) === -1;
+    });
+    const pool = filtered.length ? filtered : poolSource;
+    const round = takeNextRound(pool, "availableOpenRounds");
+    return round || emergencyOpenRounds[0];
+  }
+
+  function getEmergencyOpenRound() {
+    return normalizeOpenRound(getLocalFallbackRound());
   }
 
   function normalizeOpenRound(round) {
