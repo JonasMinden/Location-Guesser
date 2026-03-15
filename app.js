@@ -84,7 +84,7 @@
   }
 
   function loadRuntimeConfig() {
-    return fetch("./api/config")
+    return fetch("./api/runtime-config")
       .then(function (response) {
         if (!response.ok) {
           throw new Error("config-fetch-failed");

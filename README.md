@@ -100,8 +100,8 @@ Wenn `wrangler` meldet, dass das `compatibility_date` in der Zukunft liegt, ist 
 ## Cloudflare-Projektdateien
 
 - `wrangler.jsonc` - source of truth fuer lokale Entwicklung und Pages-Konfiguration
-- `_routes.json` - sorgt dafuer, dass nur `/api/*` die Pages Function aufruft
 - `_headers` - setzt Sicherheits-Header fuer statische Assets
+- `functions/api/runtime-config.js` - liefert Runtime-Konfiguration fuer Frontend und Viewer
 
 ## Empfohlene naechste Schritte
 
