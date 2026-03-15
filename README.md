@@ -20,7 +20,6 @@ Wenn du moeglichst offen und ohne Google aufsetzen willst, nutze den Open-Modus.
 - OpenStreetMap-Kacheln fuer die Guess-Karte
 - eingebettete Mapillary-Captures fuer die Ortsansicht
 - eine serverseitige Zufallsauswahl aus weltweit verteilten Regionen
-- interaktiven Open-Viewer mit Zoom im Bild, wenn `MAPILLARY_ACCESS_TOKEN` gesetzt ist
 
 Wichtige Einschraenkung: Es gibt aktuell keine vollwertige, globale, offene Street-View-Alternative mit derselben Abdeckung und Konsistenz wie Google Street View. Deshalb basiert der Open-Modus hier auf einer kuratierten Liste oeffentlich einbettbarer Mapillary-Captures statt auf einer komplett zufaelligen Weltabfrage.
 
@@ -77,6 +76,7 @@ Wenn `wrangler` meldet, dass das `compatibility_date` in der Zukunft liegt, ist 
 - OpenStreetMap-Daten sind offen nutzbar, aber die Standard-Tileserver sind kein unbegrenztes Gratis-CDN fuer groessere Produktionen.
 - Fuer kleine Tests funktioniert `tile.openstreetmap.org`, fuer groesseres oder kommerzielles Hosting solltest du einen geeigneten Tile-Provider oder eigene Tiles nutzen.
 - Mapillary erlaubt das serverseitige Suchen nach Bildern ueber die Graph API. Die weltweite Zufallsauswahl in diesem Projekt nutzt dafuer eine Cloudflare Function und einen `MAPILLARY_ACCESS_TOKEN`.
+- Der `MAPILLARY_ACCESS_TOKEN` bleibt serverseitig in Cloudflare und wird nicht an den Browser ausgeliefert.
 - Weil die Abdeckung ungleichmaessig ist, wird nicht ueber den gesamten Ozean randomisiert, sondern ueber weltweit verteilte Land-Regionen. Das ist absichtlich so, damit du tatsaechlich spielbare Runden bekommst.
 - Wenn die API nichts findet oder kein Token gesetzt ist, faellt die App auf `open-rounds.js` zurueck.
 

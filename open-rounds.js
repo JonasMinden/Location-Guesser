@@ -12,12 +12,6 @@ window.LOCATION_GUESSER_OPEN_ROUNDS = [
     imageKey: "461060004981498",
   },
   {
-    name: "Nahe Kortrijk, Belgien",
-    lat: 50.9574535,
-    lng: 3.1135016,
-    imageKey: "1138712766636263",
-  },
-  {
     name: "Nahe Castelloen, Spanien",
     lat: 39.9837946,
     lng: -0.0561718,
@@ -42,21 +36,9 @@ window.LOCATION_GUESSER_OPEN_ROUNDS = [
     imageKey: "891376231593761",
   },
   {
-    name: "Wallis, Schweiz",
-    lat: 46.3060408,
-    lng: 7.7459119,
-    imageKey: "432200785298030",
-  },
-  {
     name: "Thueringen, Deutschland",
     lat: 50.9605914,
     lng: 10.0121904,
     imageKey: "162060159262746",
-  },
-  {
-    name: "Nahe Gelsenkirchen, Deutschland",
-    lat: 51.5920891,
-    lng: 7.1408528,
-    imageKey: "1896039010739046",
   },
 ];

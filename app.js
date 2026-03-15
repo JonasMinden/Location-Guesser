@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const locations = Array.isArray(window.LOCATION_GUESSER_LOCATIONS)
     ? window.LOCATION_GUESSER_LOCATIONS
     : [];
@@ -40,6 +40,9 @@
   };
 
   const LEADERBOARD_STORAGE_KEY = "location-guesser-best-guesses-v1";
+  const OPEN_SEEN_IMAGE_KEYS_STORAGE_KEY = "location-guesser-seen-open-images-v2";
+  const MAX_PERSISTED_OPEN_IMAGE_KEYS = 5000;
+  const MAX_OPEN_IMAGE_KEYS_PER_REQUEST = 1200;
 
   const state = {
     provider: "open",
@@ -51,6 +54,10 @@
     config: {},
     availableGoogleLocations: [],
     availableOpenRounds: [],
+    importedOpenRounds: [],
+    pendingOpenRounds: [],
+    lastOpenRoundMeta: null,
+    seenOpenImageKeys: [],
     recentOpenImageKeys: [],
     recentOpenRegions: [],
     openViewer: null,
@@ -133,16 +140,32 @@
     return "Die Spielansicht konnte nicht geladen werden. Pruefe die Konfiguration.";
   }
 
+
+  function loadLocalOpenRoundPool() {
+    return fetch("./mapillary_image_pool.json", {
+      cache: "no-store",
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("local-open-pool-fetch-failed");
+        }
+        return response.json();
+      })
+      .then(function (payload) {
+        if (!Array.isArray(payload)) {
+          throw new Error("local-open-pool-invalid");
+        }
+
+        state.importedOpenRounds = payload.filter(function (item) {
+          return item && item.imageKey && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng));
+        });
+      });
+  }
   function loadOpenAssets(config) {
     const tasks = [];
 
     ensureStylesheet("leaflet-css", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
     tasks.push(loadScriptOnce("leaflet-js", "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"));
-
-    if (config.mapillaryAccessToken) {
-      ensureStylesheet("mapillary-css", "https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css");
-      tasks.push(loadScriptOnce("mapillary-js", "https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"));
-    }
 
     return Promise.all(tasks);
   }
@@ -198,10 +221,18 @@
     elements.zoomResetButton.disabled = false;
 
     state.leaderboard = loadLeaderboard();
+    state.seenOpenImageKeys = loadSeenOpenImageKeys();
     renderLeaderboard();
-    setStatus("Open-Modus aktiv: OpenStreetMap + Mapillary.", false);
     updateScoreboard();
-    startRound();
+    setStatus("Open-Modus aktiv. Lade lokalen Bildpool ...", false);
+    loadLocalOpenRoundPool()
+      .catch(function () {
+        return Promise.resolve();
+      })
+      .then(function () {
+        setStatus("Open-Modus aktiv: OpenStreetMap + Mapillary.", false);
+        startRound();
+      });
   }
 
   function createLeafletAdapter() {
@@ -487,7 +518,7 @@
         resetOpenViewerZoom();
         renderOpenViewer(state.currentLocation);
         setStatus(
-          "Open-Runde geladen" + (round.region ? " (" + round.region + ")" : "") + ". Setze deinen Guess auf der Karte.",
+          buildOpenRoundStatus(round),
           false
         );
       })
@@ -498,7 +529,7 @@
         rememberOpenRegion(emergencyRound.region);
         resetOpenViewerZoom();
         renderOpenViewer(state.currentLocation);
-        setStatus("Fallback-Runde geladen. Setze deinen Guess auf der Karte.", false);
+        setStatus(buildOpenFallbackStatus(), false);
       });
   }
 
@@ -535,11 +566,6 @@
   }
 
   function renderOpenViewer(location) {
-    if (state.config.mapillaryAccessToken && window.mapillary && window.mapillary.Viewer) {
-      renderMapillaryJsViewer(location);
-      return;
-    }
-
     elements.zoomInButton.disabled = true;
     elements.zoomOutButton.disabled = true;
     elements.zoomResetButton.disabled = true;
@@ -553,6 +579,9 @@
     iframe.loading = "lazy";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
     iframe.allowFullscreen = true;
+    iframe.addEventListener("error", function () {
+      renderOpenFallbackLink(location);
+    });
 
     const credit = document.createElement("p");
     credit.className = "viewer-credit";
@@ -569,78 +598,6 @@
     elements.pano.appendChild(credit);
   }
 
-  function renderMapillaryJsViewer(location) {
-    const Viewer = window.mapillary.Viewer;
-    elements.zoomInButton.disabled = false;
-    elements.zoomOutButton.disabled = false;
-    elements.zoomResetButton.disabled = false;
-
-    if (!state.openViewer) {
-      elements.pano.innerHTML = "";
-
-      const viewerContainer = document.createElement("div");
-      viewerContainer.id = "mapillary-viewer";
-      viewerContainer.className = "mapillary-viewer";
-
-      const credit = document.createElement("p");
-      credit.className = "viewer-credit";
-      credit.id = "viewer-credit";
-
-      elements.pano.appendChild(viewerContainer);
-      elements.pano.appendChild(credit);
-
-      state.openViewer = new Viewer({
-        accessToken: state.config.mapillaryAccessToken,
-        container: viewerContainer,
-      });
-    }
-
-    const credit = document.getElementById("viewer-credit");
-    if (credit) {
-      credit.innerHTML =
-        '<a href="' +
-        escapeHtml(location.sourceUrl) +
-        '" target="_blank" rel="noreferrer">Quelle: ' +
-        escapeHtml(location.attribution) +
-        "</a> (" +
-        escapeHtml(location.license) +
-        ")";
-    }
-
-    state.openViewer
-      .moveTo(location.imageKey)
-      .then(function () {
-        randomizeOpenViewerStart();
-        if (typeof state.openViewer.resize === "function") {
-          state.openViewer.resize();
-        }
-      })
-      .catch(function () {
-        state.openViewer = null;
-        renderOpenFallbackLink(location);
-      });
-  }
-
-  function randomizeOpenViewerStart() {
-    if (!state.openViewer) {
-      return;
-    }
-
-    if (typeof state.openViewer.setCenter === "function") {
-      state.openViewer.setCenter([
-        clamp(0.38 + Math.random() * 0.24, 0.2, 0.8),
-        clamp(0.4 + Math.random() * 0.2, 0.2, 0.8),
-      ]);
-    }
-    if (typeof state.openViewer.setFieldOfView === "function") {
-      state.openViewer.setFieldOfView(45 + Math.random() * 18);
-    }
-    if (typeof state.openViewer.setZoom === "function") {
-      state.openViewerZoom = 0.8 + Math.random() * 1.1;
-      state.openViewer.setZoom(state.openViewerZoom);
-    }
-  }
-
   function renderOpenFallbackLink(location) {
     elements.zoomInButton.disabled = true;
     elements.zoomOutButton.disabled = true;
@@ -649,9 +606,39 @@
       '<div class="viewer-fallback">' +
       "<p>Die interaktive Mapillary-Ansicht konnte nicht geladen werden. Zoom ist in diesem Fallback nicht verfuegbar.</p>" +
       '<p><a href="' +
-      escapeHtml(location.sourceUrl) +
+      escapeHtml(location.sourceUrl || "https://www.mapillary.com/app/") +
       '" target="_blank" rel="noreferrer">Bild direkt bei Mapillary oeffnen</a></p>' +
       "</div>";
+  }
+
+  function buildOpenRoundStatus(round) {
+    const parts = ["Open-Runde geladen"];
+    if (round.region) {
+      parts.push("(" + round.region + ")");
+    }
+    if (state.lastOpenRoundMeta && state.lastOpenRoundMeta.source) {
+      parts.push("- Quelle: " + state.lastOpenRoundMeta.source);
+    }
+    if (state.lastOpenRoundMeta && state.lastOpenRoundMeta.candidateCount) {
+      parts.push("- Kandidaten: " + state.lastOpenRoundMeta.candidateCount);
+    }
+    parts.push(". Setze deinen Guess auf der Karte.");
+    return parts.join(" ");
+  }
+
+  function buildOpenApiErrorMessage() {
+    const meta = state.lastOpenRoundMeta || {};
+    const reason = meta.reason ? " Grund: " + meta.reason + "." : "";
+    const source = meta.source ? " Quelle: " + meta.source + "." : "";
+    return "Die Mapillary-API liefert aktuell keine spielbare Zufallsrunde." + source + reason;
+  }
+
+  function buildOpenFallbackStatus() {
+    if (state.config.hasMapillaryAccessToken) {
+      return buildOpenApiErrorMessage() + " Lokale Fallback-Runde geladen.";
+    }
+
+    return "Fallback-Runde geladen. Setze deinen Guess auf der Karte.";
   }
 
   function placeGuess(latLng) {
@@ -723,21 +710,48 @@
     return items[index];
   }
 
-  function loadOpenRound() {
+  function loadOpenRound(attempt) {
+    const requestAttempt = attempt || 0;
+    if (state.importedOpenRounds.length) {
+      state.lastOpenRoundMeta = { source: "local-pool", reason: "", candidateCount: state.importedOpenRounds.length };
+      return Promise.resolve(normalizeOpenRound(getLocalFallbackRound()));
+    }
+    if (state.pendingOpenRounds.length) {
+      return Promise.resolve(state.pendingOpenRounds.pop());
+    }
+
+    return refillOpenRoundPool(requestAttempt).then(function () {
+      if (state.pendingOpenRounds.length) {
+        return state.pendingOpenRounds.pop();
+      }
+
+      throw new Error("open-round-pool-empty");
+    });
+  }
+
+  function refillOpenRoundPool(attempt) {
+    const requestAttempt = attempt || 0;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(function () {
       controller.abort();
     }, 9000);
+    const excludeImageKeys = dedupeStrings(
+      state.recentOpenImageKeys.concat(state.seenOpenImageKeys.slice(-MAX_OPEN_IMAGE_KEYS_PER_REQUEST))
+    );
+    const excludeRegions = dedupeStrings(state.recentOpenRegions.slice(-24));
 
-    return fetch(
-      "./api/open-round?exclude=" +
-        encodeURIComponent(state.recentOpenImageKeys.join(",")) +
-        "&excludeRegions=" +
-        encodeURIComponent(state.recentOpenRegions.join(",")),
-      {
-        signal: controller.signal,
-      }
-    )
+    return fetch("./api/open-round", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        excludeImageKeys: excludeImageKeys,
+        excludeRegions: excludeRegions,
+        count: 60,
+      }),
+      signal: controller.signal,
+    })
       .then(function (response) {
         window.clearTimeout(timeoutId);
         if (!response.ok) {
@@ -746,22 +760,74 @@
         return response.json();
       })
       .then(function (payload) {
+        state.lastOpenRoundMeta = {
+          source: payload && payload.source ? payload.source : "",
+          reason: payload && payload.reason ? payload.reason : "",
+          candidateCount: payload && payload.candidateCount ? payload.candidateCount : 0,
+        };
+
+        if (payload && Array.isArray(payload.rounds) && payload.rounds.length) {
+          const rounds = payload.rounds
+            .map(normalizeOpenRound)
+            .filter(function (round) {
+              return (
+                round &&
+                round.imageKey &&
+                state.seenOpenImageKeys.indexOf(round.imageKey) === -1 &&
+                state.recentOpenImageKeys.indexOf(round.imageKey) === -1
+              );
+            });
+
+          if (rounds.length) {
+            state.pendingOpenRounds = shuffle(rounds.slice());
+            return;
+          }
+        }
+
         if (payload && payload.round && payload.round.imageKey) {
-          return normalizeOpenRound(payload.round);
+          const singleRound = normalizeOpenRound(payload.round);
+          if (
+            singleRound &&
+            state.seenOpenImageKeys.indexOf(singleRound.imageKey) === -1 &&
+            state.recentOpenImageKeys.indexOf(singleRound.imageKey) === -1
+          ) {
+            state.pendingOpenRounds = [singleRound];
+            return;
+          }
+        }
+
+        if (requestAttempt < 4) {
+          return refillOpenRoundPool(requestAttempt + 1);
         }
 
         throw new Error("open-round-missing");
       })
-      .catch(function () {
+      .catch(function (error) {
         window.clearTimeout(timeoutId);
-        return Promise.resolve(normalizeOpenRound(getLocalFallbackRound()));
+        if (requestAttempt < 2) {
+          return refillOpenRoundPool(requestAttempt + 1);
+        }
+
+        if (state.config.hasMapillaryAccessToken) {
+          throw error || new Error("open-round-api-unavailable");
+        }
+
+        state.pendingOpenRounds = [normalizeOpenRound(getLocalFallbackRound())];
+        return Promise.resolve();
       });
   }
 
   function getLocalFallbackRound() {
-    const poolSource = openRounds.length ? openRounds : emergencyOpenRounds;
+    const poolSource = state.importedOpenRounds.length
+      ? state.importedOpenRounds
+      : openRounds.length
+        ? openRounds
+        : emergencyOpenRounds;
     const filtered = poolSource.filter(function (item) {
-      return state.recentOpenImageKeys.indexOf(item.imageKey) === -1;
+      return (
+        state.recentOpenImageKeys.indexOf(item.imageKey) === -1 &&
+        state.seenOpenImageKeys.indexOf(item.imageKey) === -1
+      );
     });
     const pool = filtered.length ? filtered : poolSource;
     const round = takeNextRound(pool, "availableOpenRounds");
@@ -795,6 +861,14 @@
     if (state.recentOpenImageKeys.length > 160) {
       state.recentOpenImageKeys = state.recentOpenImageKeys.slice(-160);
     }
+
+    if (state.seenOpenImageKeys.indexOf(imageKey) === -1) {
+      state.seenOpenImageKeys.push(imageKey);
+      if (state.seenOpenImageKeys.length > MAX_PERSISTED_OPEN_IMAGE_KEYS) {
+        state.seenOpenImageKeys = state.seenOpenImageKeys.slice(-MAX_PERSISTED_OPEN_IMAGE_KEYS);
+      }
+      saveSeenOpenImageKeys();
+    }
   }
 
   function rememberOpenRegion(region) {
@@ -815,6 +889,27 @@
       return Array.isArray(parsed) ? parsed : [];
     } catch (_error) {
       return [];
+    }
+  }
+
+  function loadSeenOpenImageKeys() {
+    try {
+      const raw = window.localStorage.getItem(OPEN_SEEN_IMAGE_KEYS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function saveSeenOpenImageKeys() {
+    try {
+      window.localStorage.setItem(
+        OPEN_SEEN_IMAGE_KEYS_STORAGE_KEY,
+        JSON.stringify(state.seenOpenImageKeys.slice(-MAX_PERSISTED_OPEN_IMAGE_KEYS))
+      );
+    } catch (_error) {
+      // Ignore storage errors and keep gameplay running.
     }
   }
 
@@ -890,6 +985,17 @@
     }
 
     return items;
+  }
+
+  function dedupeStrings(values) {
+    const seen = Object.create(null);
+    return values.filter(function (value) {
+      if (!value || seen[value]) {
+        return false;
+      }
+      seen[value] = true;
+      return true;
+    });
   }
 
   function jitterLatLng(location) {
@@ -970,3 +1076,8 @@
 
   initialize();
 })();
+
+
+
+
+
