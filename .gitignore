@@ -1,3 +1,5 @@
 config.js
+.idea/
+.wrangler/
 .DS_Store
 Thumbs.db

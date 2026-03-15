@@ -67,6 +67,8 @@ npx wrangler pages dev .
 
 Danach im Browser `http://localhost:4173` aufrufen.
 
+Wenn `wrangler` meldet, dass das `compatibility_date` in der Zukunft liegt, ist deine lokale CLI aelter als das eingetragene Datum. In diesem Repo ist deshalb ein konservatives Datum in `wrangler.jsonc` gesetzt.
+
 ## Offene Datenquellen und Grenzen
 
 - OpenStreetMap-Daten sind offen nutzbar, aber die Standard-Tileserver sind kein unbegrenztes Gratis-CDN fuer groessere Produktionen.

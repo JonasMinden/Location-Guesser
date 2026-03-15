@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "location-guesser",
   "pages_build_output_dir": ".",
-  "compatibility_date": "2026-03-15",
+  "compatibility_date": "2025-01-15",
   "vars": {
     "LOCATION_GUESSER_PROVIDER": "open"
   },
