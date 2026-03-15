@@ -208,7 +208,13 @@
       },
       setGuessMarker: function (latLng) {
         if (!guessMarker) {
-          guessMarker = L.marker([latLng.lat, latLng.lng]).addTo(map);
+          guessMarker = L.circleMarker([latLng.lat, latLng.lng], {
+            radius: 9,
+            color: "#fff4e8",
+            weight: 2,
+            fillColor: "#53d8a5",
+            fillOpacity: 1,
+          }).addTo(map);
           return;
         }
         guessMarker.setLatLng([latLng.lat, latLng.lng]).addTo(map);
