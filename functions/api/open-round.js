@@ -65,14 +65,14 @@ export async function onRequestGet(context) {
   const availableRegions = WORLD_REGIONS.filter((region) => !excludeRegions.has(region.name));
   const regionPool = shuffle(availableRegions.length ? availableRegions.slice() : WORLD_REGIONS.slice());
 
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     const region = regionPool[attempt % regionPool.length];
     const bbox = randomSubBox(region.bbox);
     const params = new URLSearchParams({
       access_token: token,
       bbox: bbox.join(","),
       fields: "id,computed_geometry,captured_at",
-      limit: "100",
+      limit: "30",
     });
 
     const response = await fetch(MAPILLARY_GRAPH_URL + "?" + params.toString(), {

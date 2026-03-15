@@ -704,13 +704,22 @@
   }
 
   function loadOpenRound() {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(function () {
+      controller.abort();
+    }, 9000);
+
     return fetch(
       "./api/open-round?exclude=" +
         encodeURIComponent(state.recentOpenImageKeys.join(",")) +
         "&excludeRegions=" +
-        encodeURIComponent(state.recentOpenRegions.join(","))
+        encodeURIComponent(state.recentOpenRegions.join(",")),
+      {
+        signal: controller.signal,
+      }
     )
       .then(function (response) {
+        window.clearTimeout(timeoutId);
         if (!response.ok) {
           throw new Error("open-round-fetch-failed");
         }
@@ -724,6 +733,7 @@
         throw new Error("open-round-missing");
       })
       .catch(function () {
+        window.clearTimeout(timeoutId);
         if (!openRounds.length) {
           throw new Error("missing-open-rounds");
         }
