@@ -34,8 +34,15 @@ const MAPILLARY_GRAPH_URL = "https://graph.mapillary.com/images";
 
 export async function onRequestGet(context) {
   const token = context.env.MAPILLARY_ACCESS_TOKEN || "";
+  const url = new URL(context.request.url);
   const exclude = new Set(
-    String(new URL(context.request.url).searchParams.get("exclude") || "")
+    String(url.searchParams.get("exclude") || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+  const excludeRegions = new Set(
+    String(url.searchParams.get("excludeRegions") || "")
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean)
@@ -45,15 +52,17 @@ export async function onRequestGet(context) {
     return Response.json({ round: null, source: "fallback", reason: "missing-token" }, { status: 200 });
   }
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const region = pickRandomItem(WORLD_REGIONS);
+  const availableRegions = WORLD_REGIONS.filter((region) => !excludeRegions.has(region.name));
+  const regionPool = shuffle(availableRegions.length ? availableRegions.slice() : WORLD_REGIONS.slice());
+
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const region = regionPool[attempt % regionPool.length];
     const bbox = randomSubBox(region.bbox);
     const params = new URLSearchParams({
       access_token: token,
       bbox: bbox.join(","),
       fields: "id,computed_geometry,captured_at",
       limit: "50",
-      image_type: "pano",
     });
 
     const response = await fetch(MAPILLARY_GRAPH_URL + "?" + params.toString(), {
@@ -147,4 +156,15 @@ function roundCoord(value) {
 
 function pickRandomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function shuffle(items) {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const current = items[index];
+    items[index] = items[swapIndex];
+    items[swapIndex] = current;
+  }
+
+  return items;
 }

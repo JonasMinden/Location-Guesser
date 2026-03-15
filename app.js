@@ -31,6 +31,7 @@
     availableGoogleLocations: [],
     availableOpenRounds: [],
     recentOpenImageKeys: [],
+    recentOpenRegions: [],
     openViewer: null,
   };
 
@@ -440,8 +441,12 @@
       .then(function (round) {
         state.currentLocation = round;
         rememberOpenImageKey(round.imageKey);
+        rememberOpenRegion(round.region);
         renderOpenViewer(state.currentLocation);
-        setStatus("Open-Runde geladen. Setze deinen Guess auf der Karte.", false);
+        setStatus(
+          "Open-Runde geladen" + (round.region ? " (" + round.region + ")" : "") + ". Setze deinen Guess auf der Karte.",
+          false
+        );
       })
       .catch(function () {
         setStatus("Keine offene Runde gefunden. Pruefe den Mapillary-Token oder nutze die Fallback-Liste.", true);
@@ -565,12 +570,18 @@
       return;
     }
 
-    state.openViewer.setCenter([
-      clamp(0.38 + Math.random() * 0.24, 0.2, 0.8),
-      clamp(0.4 + Math.random() * 0.2, 0.2, 0.8),
-    ]);
-    state.openViewer.setFieldOfView(45 + Math.random() * 18);
-    state.openViewer.setZoom(0.6 + Math.random() * 1.1);
+    if (typeof state.openViewer.setCenter === "function") {
+      state.openViewer.setCenter([
+        clamp(0.38 + Math.random() * 0.24, 0.2, 0.8),
+        clamp(0.4 + Math.random() * 0.2, 0.2, 0.8),
+      ]);
+    }
+    if (typeof state.openViewer.setFieldOfView === "function") {
+      state.openViewer.setFieldOfView(45 + Math.random() * 18);
+    }
+    if (typeof state.openViewer.setZoom === "function") {
+      state.openViewer.setZoom(0.6 + Math.random() * 1.1);
+    }
   }
 
   function renderOpenFallbackLink(location) {
@@ -630,7 +641,12 @@
   }
 
   function loadOpenRound() {
-    return fetch("./api/open-round?exclude=" + encodeURIComponent(state.recentOpenImageKeys.join(",")))
+    return fetch(
+      "./api/open-round?exclude=" +
+        encodeURIComponent(state.recentOpenImageKeys.join(",")) +
+        "&excludeRegions=" +
+        encodeURIComponent(state.recentOpenRegions.join(","))
+    )
       .then(function (response) {
         if (!response.ok) {
           throw new Error("open-round-fetch-failed");
@@ -684,8 +700,19 @@
     }
 
     state.recentOpenImageKeys.push(imageKey);
-    if (state.recentOpenImageKeys.length > 24) {
-      state.recentOpenImageKeys = state.recentOpenImageKeys.slice(-24);
+    if (state.recentOpenImageKeys.length > 80) {
+      state.recentOpenImageKeys = state.recentOpenImageKeys.slice(-80);
+    }
+  }
+
+  function rememberOpenRegion(region) {
+    if (!region) {
+      return;
+    }
+
+    state.recentOpenRegions.push(region);
+    if (state.recentOpenRegions.length > 8) {
+      state.recentOpenRegions = state.recentOpenRegions.slice(-8);
     }
   }
 
